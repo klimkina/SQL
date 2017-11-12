@@ -1,0 +1,69 @@
+select = @"SELECT MAX(WasteValue) AS WasteSum, MAX(TransValue) AS TransNum, MAX(ProportionValue) AS Proportion, wDate, yDate " +
+                    (isWeek ? ", dDate " : ", 0 AS dDate") +
+                    " FROM (  " +
+                    " SELECT SUM(" + criteria + ") as WasteValue, Count(*) as TransValue, TransValue/WasteValue as ProportionValue,  " + 
+                    " Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "') as wDate, " +
+                    " Format(Weights.Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') as yDate " +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Weights.Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))))  as dDate" : "") +
+                    " FROM ((Weights LEFT JOIN Transfers ON Transfers.TransKey = Weights.TransKey) LEFT JOIN LossType ON Weights.LossTypeID = LossType.TypeID) " +
+                    (isWasteClassesUsed ? " LEFT JOIN FoodType ON Weights.FoodTypeID = FoodType.TypeID " : "" ) +
+                    where +
+                    " GROUP BY Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'),  " +
+                    " Format(Weights.Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') " +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Weights.Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))))   " : "") +
+                    " UNION  (SELECT  0.0001 AS WasteValue, 0.0001 AS TransValue, 0.0001 as Proportion2,  " +
+                    " Format([Timestamp] + " + daysOffset + ", '" + accessAggregate + "') as wDate, " +
+                    " Format(Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') as yDate  " +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))))  as dDate   " : "") +
+                    " FROM WeightDates   " +  
+                    " WHERE [Timestamp] >= #" + _InputParameters["StartDate"].ParamValue +
+                    "# AND [Timestamp] < #" + _InputParameters["EndDate"].ParamValue + "#" +
+                    " GROUP BY Format(Timestamp + " + daysOffset + ", '" + accessAggregate + "'),  " +
+                    " Format(Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00')" +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))))) " : ")") +
+                    " ) " +
+                    " GROUP BY yDate, wDate   " +
+                    (isWeek ? ", dDate " : "")+
+                    " ORDER BY yDate " + (order ? " DESC;" : " ASC;");
+            }
+            else
+                select = select = @"SELECT SUM(" + criteria + ") as WasteSum, Count(*) as TransNum, TransNum/WasteSum as Proportion, " +
+                    " Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "') as wDate, " +
+                    " Format(Weights.Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') as yDate " +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))), DateAdd('ww', Format(Weights.Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))))  as dDate" : ", 0 AS dDate") +
+                    " FROM ((Weights LEFT JOIN Transfers ON Transfers.TransKey = Weights.TransKey) LEFT JOIN LossType ON Weights.LossTypeID = LossType.TypeID) " + 
+                    (isWasteClassesUsed ? " LEFT JOIN FoodType ON Weights.FoodTypeID = FoodType.TypeID " : "") +
+                    where +
+                    " GROUP BY Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), " +
+                    " Format(Weights.Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') " +
+                    (isWeek ? ", DateAdd('d', -" + (daysOffset +6) + "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Weights.Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy')))) " : "") +
+                    @" ORDER BY Format(Weights.Timestamp + " + daysOffset + ", 'yyyy') & Format(Format(Weights.Timestamp + " + daysOffset + ", '" + accessAggregate + "'), '00') " + (order ? " DESC;" : " ASC;");
+            
+DataTable dtTransNum = VWA4Common.DB.Retrieve(@"SELECT MAX(TransValue) AS TransNum, wDate, dDate " +
+                        " FROM ( SELECT Count(*) as TransValue, Format(Weights.Timestamp +" + daysOffset + ", 'ww') as wDate,  " +
+                        " Format(Weights.Timestamp + " + daysOffset + ", 'yyyyww') as yDate, " +
+                        " DateAdd('d', -" + (daysOffset + 6) + 
+                        "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Weights.Timestamp + " + 
+                        daysOffset + ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))))  as dDate" +      
+                        " FROM (Weights LEFT JOIN Transfers ON Transfers.TransKey = Weights.TransKey) LEFT JOIN LossType ON Weights.LossTypeID = LossType.TypeID " + 
+                        where +
+                        " GROUP BY Format(Weights.Timestamp + " + daysOffset + ", 'ww'),  " +
+                        " Format(Weights.Timestamp + " + daysOffset + ", 'yyyyww') " +
+                        ", DateAdd('d', -" + (daysOffset + 6) + "-WeekDay(DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + 
+                        ", 'yyyy'))),  DateAdd('ww', Format(Weights.Timestamp + " + daysOffset + 
+                        ", 'ww'), DateValue('1/1/' & Format(Weights.Timestamp + " + daysOffset + ", 'yyyy'))))   " +                    
+                        " UNION   " +
+                        " SELECT 0 AS TransValue, Format([Timestamp] +" + daysOffset + ", 'ww') as wDate, " +
+                        " Format([Timestamp] + " + daysOffset + ", 'yyyyww') as yDate  " +
+                        ", DateAdd('d', -" + (daysOffset + 6) + 
+                        "-WeekDay(DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))),  DateAdd('ww', Format(Timestamp + " + daysOffset + 
+                        ", 'ww'), DateValue('1/1/' & Format(Timestamp + " + daysOffset + ", 'yyyy'))))  as dDate   " +             
+                        " FROM WeightDates    " +
+                        " WHERE [Timestamp] >= #" + _InputParameters["StartDate"].ParamValue +
+                        "# AND [Timestamp] < #" + _InputParameters["EndDate"].ParamValue + "#" +
+                        " GROUP BY Format(Timestamp + " + daysOffset + ", 'ww'),  Format(Timestamp + " + daysOffset + ", 'yyyyww')" +
+                        ", DateAdd('d', -" + (daysOffset + 6) + "-WeekDay(DateValue('1/1/' & Format(Timestamp + " + daysOffset + 
+                        ", 'yyyy'))),  DateAdd('ww', Format(Timestamp + " + daysOffset + ", 'ww'), DateValue('1/1/' & Format(Timestamp + " + daysOffset + 
+                        ", 'yyyy'))))) " +
+                        " GROUP BY wDate, yDate, dDate " +
+                        " ORDER BY MAX(TransValue), yDate");
